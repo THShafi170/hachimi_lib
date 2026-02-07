@@ -7,7 +7,7 @@ pub struct IsolateTags<'a> {
     s: &'a str,
     bytes: std::str::Bytes<'a>,
     i: usize,
-    current_byte: Option<u8>
+    current_byte: Option<u8>,
 }
 
 impl<'a> IsolateTags<'a> {
@@ -17,7 +17,7 @@ impl<'a> IsolateTags<'a> {
             current_byte: bytes.next(),
             s,
             bytes,
-            i: 0
+            i: 0,
         }
     }
 }
@@ -26,15 +26,14 @@ impl<'a> Iterator for IsolateTags<'a> {
     type Item = (&'a str, bool);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_byte.is_none() {
-            return None;
-        }
+        self.current_byte?;
 
         let start = self.i;
         let mut tag_start = 0;
         let mut in_tag = false;
         let mut in_closing_tag = false;
         let mut expecting_tag_name = false;
+
         while let Some(c) = self.current_byte {
             if in_tag {
                 match c {
@@ -42,7 +41,7 @@ impl<'a> Iterator for IsolateTags<'a> {
                         if expecting_tag_name {
                             if !in_closing_tag {
                                 // Check for a matching closing tag after
-                                let tag_name = &self.s[tag_start+1..self.i];
+                                let tag_name = &self.s[tag_start + 1..self.i];
                                 let mut closing_tag = String::with_capacity(3 + tag_name.len());
                                 closing_tag += "</";
                                 closing_tag += tag_name;
@@ -53,24 +52,21 @@ impl<'a> Iterator for IsolateTags<'a> {
                                 }
                             }
                             expecting_tag_name = false;
-                        }   
+                        }
 
                         if c == b'>' {
-                            // in_tag = false;
-                            loop {
-                                self.i += 1;
-                                self.current_byte = self.bytes.next();
-                                if let Some(c) = self.current_byte {
-                                    // Capture any whitespace that comes right after it
-                                    if char::from(c).is_whitespace() {
-                                        continue;
-                                    }
+                            self.i += 1;
+                            self.current_byte = self.bytes.next();
+                            while let Some(ws) = self.current_byte {
+                                if char::from(ws).is_whitespace() {
+                                    self.i += 1;
+                                    self.current_byte = self.bytes.next();
+                                    continue;
                                 }
                                 break;
                             }
                             return Some((&self.s[start..self.i], true));
-                        }
-                        else if in_closing_tag {
+                        } else if in_closing_tag {
                             // Invalid character
                             in_tag = false;
                         }
@@ -78,8 +74,7 @@ impl<'a> Iterator for IsolateTags<'a> {
                     b'/' => {
                         if self.i == tag_start + 1 {
                             in_closing_tag = true;
-                        }
-                        else if expecting_tag_name {
+                        } else if expecting_tag_name {
                             in_tag = false;
                         }
                     }
@@ -89,14 +84,12 @@ impl<'a> Iterator for IsolateTags<'a> {
                         }
                     }
                 }
-            }
-            else if c == b'<' {
+            } else if c == b'<' {
                 if start == self.i {
                     in_tag = true;
                     expecting_tag_name = true;
                     tag_start = self.i;
-                }
-                else {
+                } else {
                     break;
                 }
             }
@@ -113,7 +106,7 @@ impl<'a> Iterator for IsolateTags<'a> {
 pub struct IsolateTagsSection {
     #[wasm_bindgen(getter_with_clone)]
     pub chunk: String,
-    pub is_tag: bool
+    pub is_tag: bool,
 }
 
 #[wasm_bindgen(js_name = isolateTags)]
@@ -121,7 +114,7 @@ pub fn isolate_tags_owned(s: &str) -> Vec<IsolateTagsSection> {
     IsolateTags::new(s)
         .map(|(chunk, is_tag)| IsolateTagsSection {
             chunk: chunk.to_owned(),
-            is_tag
+            is_tag,
         })
         .collect()
 }
@@ -133,7 +126,8 @@ fn custom_word_separator(line: &str) -> Box<dyn Iterator<Item = Word<'_>> + '_> 
     // iterator and split them based on the index.
     let mut isolate_iter = IsolateTags::new(line);
 
-    let mut unicode_break_iter: Box<dyn Iterator<Item = Word<'_>> + '_> = Box::new(std::iter::empty());
+    let mut unicode_break_iter: Box<dyn Iterator<Item = Word<'_>> + '_> =
+        Box::new(std::iter::empty());
     Box::new(std::iter::from_fn(move || {
         // Continue breaking current split
         let break_res = unicode_break_iter.next();
@@ -151,20 +145,21 @@ fn custom_word_separator(line: &str) -> Box<dyn Iterator<Item = Word<'_>> + '_> 
                         unicode_break_iter = iter;
                         return break_res;
                     }
-                }
-                else {
+                } else {
                     unicode_break_iter = Box::new(std::iter::empty());
                     return Some(Word::from(next_section));
                 }
-            }
-            else {
+            } else {
                 return None;
             }
         }
     }))
 }
 
-fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]) -> Vec<&'b [Word<'a>]> {
+fn custom_wrap_algorithm<'a, 'b>(
+    words: &'b [Word<'a>],
+    line_widths: &'b [usize],
+) -> Vec<&'b [Word<'a>]> {
     // Create intermediate buffer that doesn't contain formatting tags
     let mut clean_fragments = Vec::with_capacity(words.len());
     let mut removed_indices = Vec::with_capacity(words.len());
@@ -181,11 +176,21 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
     // quick escape!!!11
     let f64_line_widths = line_widths.iter().map(|w| *w as f64).collect::<Vec<_>>();
     if remove_offset == 0 {
-        return wrap_algorithms::wrap_optimal_fit(words, &f64_line_widths, &wrap_algorithms::Penalties::new()).unwrap();
+        return wrap_algorithms::wrap_optimal_fit(
+            words,
+            &f64_line_widths,
+            &wrap_algorithms::Penalties::new(),
+        )
+        .unwrap();
     }
 
     // Wrap without formatting tags
-    let wrapped = wrap_algorithms::wrap_optimal_fit(&clean_fragments, &f64_line_widths, &wrap_algorithms::Penalties::new()).unwrap();
+    let wrapped = wrap_algorithms::wrap_optimal_fit(
+        &clean_fragments,
+        &f64_line_widths,
+        &wrap_algorithms::Penalties::new(),
+    )
+    .unwrap();
 
     // Create results with formatting tags added back
     // Note: The break word option doesn't really affect the extra long lines since
@@ -198,8 +203,7 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
         let mut end: usize;
         if i == wrapped.len() - 1 {
             end = words.len();
-        }
-        else {
+        } else {
             let clean_end = clean_start + line.len();
             end = start + line.len();
             loop {
@@ -210,8 +214,7 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
                     if *index < clean_end {
                         end += 1;
                         removed_indices_i += 1;
-                    }
-                    else {
+                    } else {
                         break;
                     }
                 }
@@ -225,16 +228,24 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
     lines
 }
 
-pub fn wrap_text(string: &str, base_line_width: i32, line_width_multiplier: f32) -> Vec<Cow<'_, str>> {
+pub fn wrap_text(
+    string: &str,
+    base_line_width: i32,
+    line_width_multiplier: f32,
+) -> Vec<Cow<'_, str>> {
     let line_width = (base_line_width as f32 * line_width_multiplier).round() as usize;
     let options = textwrap::Options::new(line_width)
         .word_separator(textwrap::WordSeparator::Custom(custom_word_separator))
         .wrap_algorithm(textwrap::WrapAlgorithm::Custom(custom_wrap_algorithm));
-    return textwrap::wrap(string, &options);
+    textwrap::wrap(string, &options)
 }
 
 #[wasm_bindgen(js_name = wrapText)]
-pub fn wrap_text_owned(string: &str, base_line_width: i32, line_width_multiplier: f32) -> Vec<String> {
+pub fn wrap_text_owned(
+    string: &str,
+    base_line_width: i32,
+    line_width_multiplier: f32,
+) -> Vec<String> {
     wrap_text(string, base_line_width, line_width_multiplier)
         .into_iter()
         .map(|s| s.into_owned())

@@ -3,7 +3,7 @@ name = "hachimi_lib"
 description = "Common Hachimi components library"
 version = "0.1.1"
 edition = "2021"
-repository = "https://github.com/Hachimi-Hachimi/hachimi_lib"
+repository = "https://github.com/THShafi170/hachimi_lib"
 license = "MIT"
 
 [lib]
@@ -13,5 +13,5 @@ crate-type = ["cdylib"]
 lto = true
 
 [dependencies]
-wasm-bindgen = "0.2"
-textwrap = "0.16"
+wasm-bindgen = "0.2.108"
+textwrap = "0.16.2"
